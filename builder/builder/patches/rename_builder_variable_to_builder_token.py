@@ -10,6 +10,14 @@ def execute():
 	# downgrade, or migrating on develop) drops the Builder Token DocType but
 	# leaves tabBuilder Token behind, and rename_doc can't rename onto it
 	if frappe.db.table_exists("Builder Token"):
+		# A failed first run can leave the renamed table and DocType in place
+		# before the field rename completes. Sync the new fields before copying
+		# the old label values so rerunning the patch finishes that migration.
+		if frappe.db.exists("DocType", "Builder Token"):
+			meta = frappe.get_meta("Builder Token", cached=False)
+			frappe.db.updatedb("Builder Token", meta)
+			if frappe.db.has_column("Builder Token", "variable_name"):
+				rename_field("Builder Token", "variable_name", "token_name")
 		merge_stale_builder_variables()
 		return
 	if not frappe.db.exists("DocType", "Builder Variable"):

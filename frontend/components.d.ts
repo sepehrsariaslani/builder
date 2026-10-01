@@ -113,7 +113,6 @@ declare module 'vue' {
     LayersTab: typeof import('./src/components/LeftPanelTabs/LayersTab.vue')['default']
     Loading: typeof import('./src/components/Icons/Loading.vue')['default']
     MainMenu: typeof import('./src/components/MainMenu.vue')['default']
-    MarginHandler: typeof import('./src/components/MarginHandler.vue')['default']
     MiddleTruncate: typeof import('./src/components/MiddleTruncate.vue')['default']
     ModeSwitcher: typeof import('./src/components/ToolbarItems/ModeSwitcher.vue')['default']
     MoreStylesPanel: typeof import('./src/components/MoreStylesPanel.vue')['default']
