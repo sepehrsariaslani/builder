@@ -1,5 +1,38 @@
 @import "frappe-ui/style.css";
 
+@font-face {
+	font-family: Peyda;
+	font-weight: 400;
+	font-display: swap;
+	font-style: normal;
+	src: url("/assets/builder/fonts/Peyda/Peyda-Regular.ttf") format("truetype");
+}
+@font-face {
+	font-family: Peyda;
+	font-weight: 500;
+	font-display: swap;
+	font-style: normal;
+	src: url("/assets/builder/fonts/Peyda/Peyda-Medium.ttf") format("truetype");
+}
+@font-face {
+	font-family: Peyda;
+	font-weight: 600;
+	font-display: swap;
+	font-style: normal;
+	src: url("/assets/builder/fonts/Peyda/Peyda-SemiBold.ttf") format("truetype");
+}
+@font-face {
+	font-family: Peyda;
+	font-weight: 700;
+	font-display: swap;
+	font-style: normal;
+	src: url("/assets/builder/fonts/Peyda/Peyda-Bold.ttf") format("truetype");
+}
+
+:root {
+	font-family: Peyda, InterVar, ui-sans-serif, system-ui, sans-serif;
+}
+
 /* The same files published pages load, rather than the build's hashed copies of them,
    so the editor, its canvas and any page the visitor came from share one download. */
 @font-face {

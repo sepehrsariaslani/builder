@@ -27,6 +27,7 @@ const WEIGHT_LABELS: Record<FontWeight, string> = {
 };
 
 const GF_CSS = "https://fonts.googleapis.com/css2";
+const BUILT_IN_FONT = "Peyda";
 const fontCache = new Map<string, Promise<string>>();
 
 // A preview renders one label — a family's own name, or a Font token's label, which
@@ -61,7 +62,11 @@ let fontListPromise: Promise<FontListItem[]> | null = null;
 export function loadFontList(): Promise<FontListItem[]> {
 	if (!fontListPromise) {
 		fontListPromise = import("@/utils/fontList.json").then((m) => {
-			fontListItems.value = m.default.items as FontListItem[];
+			const googleFonts = m.default.items as FontListItem[];
+			fontListItems.value = [
+				{ family: BUILT_IN_FONT, variants: ["regular", "500", "600", "700"] },
+				...googleFonts.filter((font) => font.family !== BUILT_IN_FONT),
+			];
 			return fontListItems.value;
 		});
 	}
@@ -172,7 +177,9 @@ export function setFont(font: string | null, weight?: string, italic = false): P
 
 	const promise = customFont
 		? loadCustomFont(family, customFont.font_file)
-		: loadGoogleFont(family, weight, italic);
+		: family === BUILT_IN_FONT
+			? document.fonts.load(`${weight ?? "400"} 1em "${family}"`).then(() => family)
+			: loadGoogleFont(family, weight, italic);
 
 	fontCache.set(cacheKey, promise);
 	return promise;
@@ -231,7 +238,9 @@ function resolvePreviewFace(font: string, label: string): Promise<string> {
 	// a font already applied on the canvas has its full face on the way, and uploaded
 	// fonts are served whole from the site itself — either way there is nothing to
 	// subset, and setFont already caches both under the real family name
-	return isCustomFont(font) || fontCache.has(font) ? setFont(font) : loadSubsetFace(font, label);
+	return isCustomFont(font) || font === BUILT_IN_FONT || fontCache.has(font)
+		? setFont(font)
+		: loadSubsetFace(font, label);
 }
 
 /** Loads just enough of a font to render one label — its own family name by default.

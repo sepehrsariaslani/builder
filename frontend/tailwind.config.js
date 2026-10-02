@@ -39,6 +39,9 @@ export default {
 			colors: {
 				zinc: colors.zinc,
 			},
+			fontFamily: {
+				sans: ["Peyda", "InterVar", "ui-sans-serif", "system-ui", "sans-serif"],
+			},
 		},
 	},
 };

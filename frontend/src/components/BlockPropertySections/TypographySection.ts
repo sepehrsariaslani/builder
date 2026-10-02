@@ -60,7 +60,7 @@ const typographySectionProperties = [
 				// font available on first open
 				getOptions: async () => {
 					await loadFontList();
-					return getFontWeightOptions((blockController.getStyle("fontFamily") || "Inter") as string);
+					return getFontWeightOptions((blockController.getStyle("fontFamily") || "Peyda") as string);
 				},
 				step: 100,
 				min: 100,
