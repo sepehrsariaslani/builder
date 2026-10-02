@@ -223,16 +223,22 @@ class ChunkAssembler:
 		self.order: list[dict] = []
 		self.texted: set[str] = set()
 		self.reasoning_parts: dict[str, tuple] = {}
+		self.citations: dict[str, dict] = {}
+		self.web_activity: list[dict] = []
 		self.finished = False
 
 	def feed(self, event: dict) -> list:
-		kind = event.get("type")
+		kind = str(event.get("type") or "")
 		if kind in {"error", "response.failed"}:
 			raise CodexError(error_detail(event))
 		if kind == "response.output_item.added":
 			return self.open_item(event.get("item") or {})
 		if kind == "response.function_call_arguments.delta":
 			return self.append_arguments(event)
+		if kind == "response.output_text.annotation.added":
+			return self.append_annotation(event.get("annotation") or {})
+		if kind.startswith("response.web_search_call."):
+			return self.append_web_activity(event)
 		if kind in {"response.reasoning_summary_text.delta", "response.reasoning_text.delta"}:
 			return self.append_reasoning(event)
 		if kind == "response.output_text.delta":
@@ -281,9 +287,37 @@ class ChunkAssembler:
 		self.texted.add(event.get("item_id") or "")
 		return [chunk(content=delta)]
 
+	def append_annotation(self, annotation: dict) -> list:
+		if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+			return []
+		url = str(annotation.get("url") or "").strip()
+		if not url.startswith(("https://", "http://")):
+			return []
+		self.citations[url] = {"title": str(annotation.get("title") or url)[:240], "url": url[:2000]}
+		return []
+
+	def append_web_activity(self, event: dict) -> list:
+		action = event.get("action") if isinstance(event.get("action"), dict) else {}
+		queries = action.get("queries") if isinstance(action.get("queries"), list) else []
+		query = action.get("query") or (queries[0] if queries else "")
+		activity = {
+			"event": str(event.get("type") or "")[:100],
+			"status": str(event.get("status") or event.get("type") or "")[:40],
+			"query": str(query or "")[:500],
+		}
+		if not self.web_activity or self.web_activity[-1] != activity:
+			self.web_activity.append(activity)
+		return [chunk(web_activity=[activity])]
+
 	def close_item(self, item: dict) -> list:
 		if item.get("type") == "function_call":
 			return self.close_call(item)
+		if item.get("type") == "message":
+			for part in item.get("content") or []:
+				if not isinstance(part, dict):
+					continue
+				for annotation in part.get("annotations") or []:
+					self.append_annotation(annotation)
 		if item.get("type") == "message" and item.get("id") not in self.texted:
 			# nothing streamed for this message, so the done text is all there is
 			if text := message_text(item):
@@ -301,9 +335,25 @@ class ChunkAssembler:
 
 	def finish(self, event: dict, *, truncated: bool) -> list:
 		self.finished = True
-		usage = (event.get("response") or {}).get("usage") or {}
+		response = event.get("response") or {}
+		usage = response.get("usage") or {}
+		for item in response.get("output") or []:
+			if not isinstance(item, dict):
+				continue
+			if item.get("type") == "message":
+				for part in item.get("content") or []:
+					if isinstance(part, dict):
+						for annotation in part.get("annotations") or []:
+							self.append_annotation(annotation)
+			elif item.get("type") == "web_search_call":
+				self.append_web_activity({"type": "response.web_search_call.completed", "status": item.get("status"), "action": item.get("action")})
 		finish_reason = "length" if truncated else ("tool_calls" if self.order else "stop")
-		return [chunk(finish_reason=finish_reason, usage=usage_of(usage))]
+		return [chunk(
+			finish_reason=finish_reason,
+			usage=usage_of(usage),
+			citations=list(self.citations.values()),
+			web_activity=list(self.web_activity),
+		)]
 
 	def register_call(self, item: dict) -> dict:
 		call = {
@@ -326,8 +376,14 @@ class ChunkAssembler:
 		return self.order[0] if len(self.order) == 1 else None
 
 
-def chunk(*, content=None, reasoning=None, tool_calls=None, finish_reason=None, usage=None):
-	delta = SimpleNamespace(content=content, reasoning_content=reasoning, tool_calls=tool_calls)
+def chunk(*, content=None, reasoning=None, tool_calls=None, finish_reason=None, usage=None, citations=None, web_activity=None):
+	delta = SimpleNamespace(
+		content=content,
+		reasoning_content=reasoning,
+		tool_calls=tool_calls,
+		citations=citations or [],
+		web_activity=web_activity or [],
+	)
 	return SimpleNamespace(choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)], usage=usage)
 
 
@@ -458,17 +514,20 @@ def content_text(content) -> str:
 
 
 def responses_tools(tools: list) -> list:
-	return [
-		{
+	result = []
+	for tool in tools:
+		if tool.get("type") == "web_search":
+			result.append({"type": "web_search", "search_context_size": tool.get("search_context_size") or "medium"})
+			continue
+		fn = tool.get("function") or {}
+		result.append({
 			"type": "function",
 			"name": fn.get("name") or "",
 			"description": fn.get("description") or "",
 			"parameters": fn.get("parameters") or {},
 			"strict": None,
-		}
-		for t in tools
-		for fn in [t.get("function") or {}]
-	]
+		})
+	return result
 
 
 # --- the OAuth credential ----------------------------------------------------
